@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
     <modelVersion>4.0.0</modelVersion>
 
@@ -59,21 +59,11 @@
         <module>integrations</module>
     </modules>
 
-    <scm>
-        <connection>scm:git:git@github.com:eclipse-store/store.git</connection>
-        <developerConnection>scm:git:git@github.com:eclipse-store/store.git</developerConnection>
-        <url>https://github.com/eclipse-store</url>
-        <tag>HEAD</tag>
-    </scm>
-
     <distributionManagement>
-        <snapshotRepository>
-            <id>ossrh</id>
-            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
-        </snapshotRepository>
         <repository>
-            <id>ossrh</id>
-            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+            <id>github</id>
+            <name>Github Packages</name>
+            <url>https://maven.pkg.github.com/dominoinformatics/eclipse-store</url>
         </repository>
     </distributionManagement>
 
@@ -216,7 +206,8 @@
                             </goals>
                             <configuration>
                                 <archive>
-                                    <manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
+                                    <manifestFile>
+                                        ${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
                                     <manifestEntries>
                                         <built-by>${project.organization.name}</built-by>
                                     </manifestEntries>
@@ -460,7 +451,8 @@
                                         <requireFilesExist>
                                             <message>The module-info is not present</message>
                                             <files>
-                                                <file>${project.basedir}/src/main/java/module-info.java</file>
+                                                <file>
+                                                    ${project.basedir}/src/main/java/module-info.java</file>
                                             </files>
                                         </requireFilesExist>
                                     </rules>

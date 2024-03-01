@@ -38,13 +38,10 @@ import org.eclipse.serializer.typing.KeyValue;
 import org.eclipse.serializer.util.BufferSizeProviderIncremental;
 import org.eclipse.serializer.util.X;
 import org.eclipse.serializer.util.logging.Logging;
-import org.eclipse.store.storage.exceptions.StorageExceptionConsistency;
 import org.eclipse.store.storage.monitoring.StorageChannelHousekeepingMonitor;
 import org.slf4j.Logger;
 
-
-public interface StorageChannel extends Runnable, StorageChannelResetablePart, StorageActivePart, Disposable
-{
+public interface StorageChannel extends Runnable, StorageChannelResetablePart, StorageActivePart, Disposable {
 	public StorageTypeDictionary typeDictionary();
 
 	public ChunksBuffer collectLoadByOids(ChunksBuffer[] channelChunks, PersistenceIdSet loadOids);
@@ -60,7 +57,7 @@ public interface StorageChannel extends Runnable, StorageChannelResetablePart, S
 	public void commitChunkStorage();
 
 	public void postStoreUpdateEntityCache(ByteBuffer[] chunks, long[] chunksStoragePositions)
-		throws InterruptedException;
+			throws InterruptedException;
 
 	public StorageInventory readStorage();
 
@@ -71,7 +68,7 @@ public interface StorageChannel extends Runnable, StorageChannelResetablePart, S
 	public boolean issuedEntityCacheCheck(long nanoTimeBudget, StorageEntityCacheEvaluator entityEvaluator);
 
 	public boolean issuedTransactionsLogCleanup();
-	
+
 	public void exportData(StorageLiveFileProvider fileProvider);
 
 	// (19.07.2014 TM)TODO: refactor storage typing to avoid classes in public API
@@ -84,213 +81,192 @@ public interface StorageChannel extends Runnable, StorageChannelResetablePart, S
 	public void commitImportData(long taskTimestamp);
 
 	public KeyValue<Long, Long> exportTypeEntities(StorageEntityTypeHandler type, AWritableFile file)
-		throws IOException;
+			throws IOException;
 
 	public KeyValue<Long, Long> exportTypeEntities(
-		StorageEntityTypeHandler         type           ,
-		AWritableFile                    file           ,
-		Predicate<? super StorageEntity> predicateEntity
-	) throws IOException;
+			StorageEntityTypeHandler type,
+			AWritableFile file,
+			Predicate<? super StorageEntity> predicateEntity) throws IOException;
 
 	public StorageRawFileStatistics.ChannelStatistics createRawFileStatistics();
 
 	public StorageIdAnalysis initializeStorage(
-		long             taskTimestamp           ,
-		long             consistentStoreTimestamp,
-		StorageInventory storageInventory
-	);
+			long taskTimestamp,
+			long consistentStoreTimestamp,
+			StorageInventory storageInventory);
 
 	public void signalGarbageCollectionSweepCompleted();
 
-//	public void truncateData();
+	// public void truncateData();
 
 	public void cleanupStore();
 
-
-	
-
-	public final class Default implements StorageChannel, Unpersistable, StorageHousekeepingExecutor
-	{
+	public final class Default implements StorageChannel, Unpersistable, StorageHousekeepingExecutor {
 		private final static Logger logger = Logging.getLogger(StorageChannel.class);
-		
+
 		///////////////////////////////////////////////////////////////////////////
 		// instance fields //
 		////////////////////
 
-		private final int                           channelIndex             ;
-		private final StorageExceptionHandler       exceptionHandler         ;
-		private final StorageTaskBroker             taskBroker               ;
-		private final StorageOperationController    operationController      ;
-		private final StorageHousekeepingController housekeepingController   ;
-		private final StorageHousekeepingBroker     housekeepingBroker       ;
-		private final StorageFileManager.Default    fileManager              ;
-		private final StorageEntityCache.Default    entityCache              ;
-		private final boolean                       switchByteOrder          ;
+		private final int channelIndex;
+		private final StorageExceptionHandler exceptionHandler;
+		private final StorageTaskBroker taskBroker;
+		private final StorageOperationController operationController;
+		private final StorageHousekeepingController housekeepingController;
+		private final StorageHousekeepingBroker housekeepingBroker;
+		private final StorageFileManager.Default fileManager;
+		private final StorageEntityCache.Default entityCache;
+		private final boolean switchByteOrder;
 		private final BufferSizeProviderIncremental loadingBufferSizeProvider;
-		private final StorageEventLogger            eventLogger              ;
+		private final StorageEventLogger eventLogger;
 
 		private final HousekeepingTask[] housekeepingTasks;
-		
+
 		private int nextHouseKeepingIndex;
 
 		/**
-		 * A nanosecond timestamp marking the calculated end of the current housekeeping interval.
+		 * A nanosecond timestamp marking the calculated end of the current housekeeping
+		 * interval.
+		 * 
 		 * @see {@link StorageHousekeepingController#housekeepingIntervalMs()}
 		 */
 		private long housekeepingIntervalBoundTimeNs;
 
 		/**
 		 * The remaining housekeeping budget in nanoseconds for the current interval.
+		 * 
 		 * @see StorageHousekeepingController#housekeepingTimeBudgetNs()
 		 */
 		private long housekeepingIntervalBudgetNs;
-		
+
 		private boolean active;
 
 		private final StorageChannelHousekeepingMonitor monitoringData;
-
 
 		///////////////////////////////////////////////////////////////////////////
 		// constructors //
 		/////////////////
 
 		public Default(
-			final int                           hashIndex                ,
-			final StorageExceptionHandler       exceptionHandler         ,
-			final StorageTaskBroker             taskBroker               ,
-			final StorageOperationController    operationController      ,
-			final StorageHousekeepingBroker     housekeepingBroker       ,
-			final StorageHousekeepingController housekeepingController   ,
-			final StorageEntityCache.Default    entityCache              ,
-			final boolean                       switchByteOrder          ,
-			final BufferSizeProviderIncremental loadingBufferSizeProvider,
-			final StorageFileManager.Default    fileManager              ,
-			final StorageEventLogger            eventLogger              ,
-			final MonitoringManager             monitorManager
-		)
-		{
+				final int hashIndex,
+				final StorageExceptionHandler exceptionHandler,
+				final StorageTaskBroker taskBroker,
+				final StorageOperationController operationController,
+				final StorageHousekeepingBroker housekeepingBroker,
+				final StorageHousekeepingController housekeepingController,
+				final StorageEntityCache.Default entityCache,
+				final boolean switchByteOrder,
+				final BufferSizeProviderIncremental loadingBufferSizeProvider,
+				final StorageFileManager.Default fileManager,
+				final StorageEventLogger eventLogger,
+				final MonitoringManager monitorManager) {
 			super();
-			this.channelIndex              = notNegative(hashIndex)                ;
-			this.exceptionHandler          =     notNull(exceptionHandler)         ;
-			this.taskBroker                =     notNull(taskBroker)               ;
-			this.operationController       =     notNull(operationController)      ;
-			this.housekeepingBroker        =     notNull(housekeepingBroker)       ;
-			this.fileManager               =     notNull(fileManager)              ;
-			this.entityCache               =     notNull(entityCache)              ;
-			this.housekeepingController    =     notNull(housekeepingController)   ;
-			this.loadingBufferSizeProvider =     notNull(loadingBufferSizeProvider);
-			this.eventLogger               =     notNull(eventLogger)              ;
-			this.switchByteOrder           =             switchByteOrder           ;
-			
+			this.channelIndex = notNegative(hashIndex);
+			this.exceptionHandler = notNull(exceptionHandler);
+			this.taskBroker = notNull(taskBroker);
+			this.operationController = notNull(operationController);
+			this.housekeepingBroker = notNull(housekeepingBroker);
+			this.fileManager = notNull(fileManager);
+			this.entityCache = notNull(entityCache);
+			this.housekeepingController = notNull(housekeepingController);
+			this.loadingBufferSizeProvider = notNull(loadingBufferSizeProvider);
+			this.eventLogger = notNull(eventLogger);
+			this.switchByteOrder = switchByteOrder;
+
 			// depends on this.fileManager!
 			this.housekeepingTasks = this.defineHouseKeepingTasks();
-			
+
 			this.monitoringData = new StorageChannelHousekeepingMonitor(this.channelIndex);
 			monitorManager.registerMonitor(this.monitoringData);
 		}
 
-
-
 		///////////////////////////////////////////////////////////////////////////
 		// declared methods //
 		/////////////////////
-		
-		private HousekeepingTask[] defineHouseKeepingTasks()
-		{
+
+		private HousekeepingTask[] defineHouseKeepingTasks() {
 			final BulkList<HousekeepingTask> tasks = BulkList.New();
 			tasks.add(this::houseKeepingCheckFileCleanup);
 			tasks.add(this::houseKeepingGarbageCollection);
 			tasks.add(this::houseKeepingEntityCacheCheck);
 			tasks.add(this::houseKeepingTransactionFile);
-			// (16.06.2020 TM)TODO: priv#49: housekeeping task that closes data files after a timeout.
+			// (16.06.2020 TM)TODO: priv#49: housekeeping task that closes data files after
+			// a timeout.
 
 			return tasks.toArray(HousekeepingTask.class);
 		}
 
-		private int getCurrentHouseKeepingIndexAndAdvance()
-		{
-			if(this.nextHouseKeepingIndex >= this.housekeepingTasks.length)
-			{
+		private int getCurrentHouseKeepingIndexAndAdvance() {
+			if (this.nextHouseKeepingIndex >= this.housekeepingTasks.length) {
 				this.nextHouseKeepingIndex = 1;
 				return 0;
 			}
 			return this.nextHouseKeepingIndex++;
 		}
 
-		private void houseKeeping()
-		{
+		private void houseKeeping() {
 			final long currentNanotime;
 
-			if((currentNanotime = System.nanoTime()) >= this.housekeepingIntervalBoundTimeNs)
-			{
+			if ((currentNanotime = System.nanoTime()) >= this.housekeepingIntervalBoundTimeNs) {
 				this.housekeepingIntervalBoundTimeNs = currentNanotime
-					+ Storage.millisecondsToNanoseconds(this.housekeepingController.housekeepingIntervalMs())
-				;
+						+ Storage.millisecondsToNanoseconds(this.housekeepingController.housekeepingIntervalMs());
 				this.housekeepingIntervalBudgetNs = this.housekeepingController.housekeepingTimeBudgetNs();
-			}
-			else if(this.housekeepingIntervalBudgetNs <= 0)
-			{
+			} else if (this.housekeepingIntervalBudgetNs <= 0) {
 				return;
-			}
-			else if(this.housekeepingIntervalBoundTimeNs - currentNanotime < this.housekeepingIntervalBudgetNs)
-			{
-				// cap remaining housekeeping budget at the current interval's housekeeping time bound
+			} else if (this.housekeepingIntervalBoundTimeNs - currentNanotime < this.housekeepingIntervalBudgetNs) {
+				// cap remaining housekeeping budget at the current interval's housekeeping time
+				// bound
 				this.housekeepingIntervalBudgetNs = this.housekeepingIntervalBoundTimeNs - currentNanotime;
 			}
 
 			final long budgetOffset = currentNanotime + this.housekeepingIntervalBudgetNs;
 
-
-			// execute every task once at most per cycle (therefore the counter, but NOT for selecting the task)
-			for(int c = 0; c < this.housekeepingTasks.length; c++)
-			{
-				// call the next task (next from last cycle or just another one if there is still time)
+			// execute every task once at most per cycle (therefore the counter, but NOT for
+			// selecting the task)
+			for (int c = 0; c < this.housekeepingTasks.length; c++) {
+				// call the next task (next from last cycle or just another one if there is
+				// still time)
 				this.housekeepingTasks[this.getCurrentHouseKeepingIndexAndAdvance()].perform();
 
-				// intentionally checked AFTER the first housekeeping task to guarantee at least one task to be executed
-				if((this.housekeepingIntervalBudgetNs = budgetOffset - System.nanoTime()) <= 0)
-				{
+				// intentionally checked AFTER the first housekeeping task to guarantee at least
+				// one task to be executed
+				if ((this.housekeepingIntervalBudgetNs = budgetOffset - System.nanoTime()) <= 0) {
 					break;
 				}
 			}
 
 		}
-		
+
 		@Override
-		public boolean performIssuedGarbageCollection(final long nanoTimeBudget)
-		{
+		public boolean performIssuedGarbageCollection(final long nanoTimeBudget) {
 			logger.trace("StorageChannel#{} performing issued garbage collection", this.channelIndex);
-			
+
 			// turn budget into the budget bounding value for easier and faster checking
 			final long nanoTimeBudgetBound = XTime.calculateNanoTimeBudgetBound(nanoTimeBudget);
 
 			return this.entityCache.issuedGarbageCollection(nanoTimeBudgetBound, this);
 		}
-		
+
 		@Override
-		public boolean performIssuedFileCleanupCheck(final long nanoTimeBudget)
-		{
-			if(!this.fileManager.isFileCleanupEnabled())
-			{
+		public boolean performIssuedFileCleanupCheck(final long nanoTimeBudget) {
+			if (!this.fileManager.isFileCleanupEnabled()) {
 				return true;
 			}
-			
+
 			logger.trace("StorageChannel#{} performing issued file cleanup check", this.channelIndex);
-			
+
 			// turn budget into the budget bounding value for easier and faster checking
 			final long nanoTimeBudgetBound = XTime.calculateNanoTimeBudgetBound(nanoTimeBudget);
-			
+
 			return this.fileManager.issuedFileCleanupCheck(nanoTimeBudgetBound);
 		}
-		
+
 		@Override
 		public boolean performIssuedEntityCacheCheck(
-			final long                        nanoTimeBudget,
-			final StorageEntityCacheEvaluator evaluator
-		)
-		{
+				final long nanoTimeBudget,
+				final StorageEntityCacheEvaluator evaluator) {
 			logger.trace("StorageChannel#{} performing issued entity cache check", this.channelIndex);
-			
+
 			// turn budget into the budget bounding value for easier and faster checking
 			final long nanoTimeBudgetBound = XTime.calculateNanoTimeBudgetBound(nanoTimeBudget);
 
@@ -298,188 +274,166 @@ public interface StorageChannel extends Runnable, StorageChannelResetablePart, S
 		}
 
 		@Override
-		public final boolean performFileCleanupCheck(final long nanoTimeBudget)
-		{
-			if(!this.fileManager.isFileCleanupEnabled())
-			{
+		public final boolean performFileCleanupCheck(final long nanoTimeBudget) {
+			if (!this.fileManager.isFileCleanupEnabled()) {
 				return true;
 			}
-			
+
 			logger.trace("StorageChannel#{} performing incremental file cleanup check", this.channelIndex);
-			
+
 			// turn budget into the budget bounding value for easier and faster checking
 			final long nanoTimeBudgetBound = XTime.calculateNanoTimeBudgetBound(nanoTimeBudget);
-			
-					
+
 			final StorageChannelHousekeepingResult result = StorageChannelHousekeepingResult.create(nanoTimeBudget,
-				() -> this.fileManager.incrementalFileCleanupCheck(nanoTimeBudgetBound));
-			
+					() -> this.fileManager.incrementalFileCleanupCheck(nanoTimeBudgetBound));
+
 			this.monitoringData.setFileCleanupCheckResult(result);
-			
+
 			return result.getResult();
 		}
-		
+
 		@Override
-		public boolean performGarbageCollection(final long nanoTimeBudget)
-		{
+		public boolean performGarbageCollection(final long nanoTimeBudget) {
 			logger.trace("StorageChannel#{} performing incremental garbage collection", this.channelIndex);
-			
+
 			// turn budget into the budget bounding value for easier and faster checking
 			final long nanoTimeBudgetBound = XTime.calculateNanoTimeBudgetBound(nanoTimeBudget);
-			
+
 			final StorageChannelHousekeepingResult result = StorageChannelHousekeepingResult.create(nanoTimeBudget,
-				() -> this.entityCache.incrementalGarbageCollection(nanoTimeBudgetBound, this));
-			
+					() -> this.entityCache.incrementalGarbageCollection(nanoTimeBudgetBound, this));
+
 			this.monitoringData.setGarbageCollectionResult(result);
-			
+
 			return result.getResult();
 		}
-		
+
 		@Override
 		public boolean performEntityCacheCheck(
-			final long nanoTimeBudget
-		)
-		{
+				final long nanoTimeBudget) {
 			logger.trace("StorageChannel#{} performing incremental entity cache check", this.channelIndex);
-			
+
 			// turn budget into the budget bounding value for easier and faster checking
 			final long nanoTimeBudgetBound = XTime.calculateNanoTimeBudgetBound(nanoTimeBudget);
-			
+
 			final StorageChannelHousekeepingResult result = StorageChannelHousekeepingResult.create(nanoTimeBudget,
-				() -> this.entityCache.incrementalEntityCacheCheck(nanoTimeBudgetBound));
-			
+					() -> this.entityCache.incrementalEntityCacheCheck(nanoTimeBudgetBound));
+
 			this.monitoringData.setEntityCacheCheckResult(result);
-			
+
 			return result.getResult();
 		}
-		
+
 		@Override
-		public boolean performTransactionFileCheck(final boolean checkSize)
-		{
-			if(!this.fileManager.isFileCleanupEnabled())
-			{
+		public boolean performTransactionFileCheck(final boolean checkSize) {
+			if (!this.fileManager.isFileCleanupEnabled()) {
 				return true;
 			}
-			
+
 			logger.trace("StorageChannel#{} performing transaction file check", this.channelIndex);
-			
+
 			return this.fileManager.issuedTransactionFileCheck(checkSize);
 		}
-		
+
 		@Override
-		public final boolean issuedGarbageCollection(final long nanoTimeBudget)
-		{
+		public final boolean issuedGarbageCollection(final long nanoTimeBudget) {
 			return this.housekeepingBroker.performIssuedGarbageCollection(this, nanoTimeBudget);
 		}
 
 		@Override
-		public boolean issuedFileCleanupCheck(final long nanoTimeBudget)
-		{
+		public boolean issuedFileCleanupCheck(final long nanoTimeBudget) {
 			return this.housekeepingBroker.performIssuedFileCleanupCheck(this, nanoTimeBudget);
 		}
 
 		@Override
 		public boolean issuedEntityCacheCheck(
-			final long                        nanoTimeBudget,
-			final StorageEntityCacheEvaluator entityEvaluator
-		)
-		{
+				final long nanoTimeBudget,
+				final StorageEntityCacheEvaluator entityEvaluator) {
 			return this.housekeepingBroker.performIssuedEntityCacheCheck(this, nanoTimeBudget, entityEvaluator);
 		}
-		
+
 		@Override
-		public boolean issuedTransactionsLogCleanup()
-		{
+		public boolean issuedTransactionsLogCleanup() {
 			return this.housekeepingBroker.performTransactionFileCheck(this, false);
 		}
-		
-		private long calculateSpecificHousekeepingTimeBudget(final long nanoTimeBudget)
-		{
+
+		private long calculateSpecificHousekeepingTimeBudget(final long nanoTimeBudget) {
 			return Math.min(nanoTimeBudget, this.housekeepingIntervalBudgetNs);
 		}
 
-		final boolean houseKeepingCheckFileCleanup()
-		{
-			if(!this.fileManager.isFileCleanupEnabled())
-			{
+		final boolean houseKeepingCheckFileCleanup() {
+			if (!this.fileManager.isFileCleanupEnabled()) {
 				return true;
 			}
-			
+
 			final long nanoTimeBudget = this.calculateSpecificHousekeepingTimeBudget(
-				this.housekeepingController.fileCheckTimeBudgetNs()
-			);
-			
+					this.housekeepingController.fileCheckTimeBudgetNs());
+
 			return this.housekeepingBroker.performFileCleanupCheck(this, nanoTimeBudget);
 		}
 
-		final boolean houseKeepingGarbageCollection()
-		{
+		final boolean houseKeepingGarbageCollection() {
 			final long nanoTimeBudget = this.calculateSpecificHousekeepingTimeBudget(
-				this.housekeepingController.garbageCollectionTimeBudgetNs()
-			);
-			
+					this.housekeepingController.garbageCollectionTimeBudgetNs());
+
 			return this.housekeepingBroker.performGarbageCollection(this, nanoTimeBudget);
 		}
 
-		final boolean houseKeepingEntityCacheCheck()
-		{
+		final boolean houseKeepingEntityCacheCheck() {
 			final long nanoTimeBudget = this.calculateSpecificHousekeepingTimeBudget(
-				this.housekeepingController.liveCheckTimeBudgetNs()
-			);
-			
+					this.housekeepingController.liveCheckTimeBudgetNs());
+
 			return this.housekeepingBroker.performEntityCacheCheck(this, nanoTimeBudget);
 		}
-		
-		final boolean houseKeepingTransactionFile()
-		{
+
+		final boolean houseKeepingTransactionFile() {
 			return this.housekeepingBroker.performTransactionFileCheck(this, true);
 		}
 
-		private void work() throws InterruptedException
-		{
+		private void work() throws InterruptedException {
 			logger.debug("StorageChannel#{} started", this.channelIndex);
-			
-			final StorageOperationController    operationController    = this.operationController   ;
+
+			final StorageOperationController operationController = this.operationController;
 			final StorageHousekeepingController housekeepingController = this.housekeepingController;
 
 			StorageTask processedTask = new StorageTask.DummyTask();
-			StorageTask currentTask   = notNull(this.taskBroker.currentTask());
+			StorageTask currentTask = notNull(this.taskBroker.currentTask());
 
-			while(true)
-			{
-				// ensure to process every task only once in case no new task came in in time (see below).
-				if(currentTask != processedTask)
-				{
+			while (true) {
+				// ensure to process every task only once in case no new task came in in time
+				// (see below).
+				if (currentTask != processedTask) {
 					currentTask.processBy(this);
 					processedTask = currentTask;
 				}
 
 				/*
-				 * Must check immediately after task processing to abort BEFORE houseKeeping is called in case
+				 * Must check immediately after task processing to abort BEFORE houseKeeping is
+				 * called in case
 				 * of shutdown (otherwise NPE on headFile etc.). So do-while not possible.
-				 * Also, may NOT check before task processing as the first task is initializing which in turn
+				 * Also, may NOT check before task processing as the first task is initializing
+				 * which in turn
 				 * enables channel processing on success. So no simple while condition possible.
 				 */
-				if(!operationController.checkProcessingEnabled())
-				{
+				if (!operationController.checkProcessingEnabled()) {
 					logger.debug("StorageChannel#{} processing disabled", this.channelIndex);
 					this.eventLogger.logChannelProcessingDisabled(this);
 					break;
 				}
 
-				// do a little house keeping, either after a new task or use time if no new task came in.
-				/* (29.07.2020 TM)FIXME: priv#361: An exception during housekeeping is fatal
-				 * it kills the channel thread and leaves the application thread forever waiting to be
+				// do a little house keeping, either after a new task or use time if no new task
+				// came in.
+				/*
+				 * (29.07.2020 TM)FIXME: priv#361: An exception during housekeeping is fatal
+				 * it kills the channel thread and leaves the application thread forever waiting
+				 * to be
 				 * notified.
 				 * This has to be covered by a similar mechanism as tasks are.
-				 * Or maybe some consolidation of that mechanism has to be done to cover house keeping as well.
+				 * Or maybe some consolidation of that mechanism has to be done to cover house
+				 * keeping as well.
 				 */
-				try
-				{
+				try {
 					this.houseKeeping();
-				}
-				catch(final Throwable t)
-				{
+				} catch (final Throwable t) {
 					logger.error("StorageChannel#{} encountered disrupting exception", this.channelIndex, t);
 					this.eventLogger.logDisruption(this, t);
 					this.operationController.setChannelProcessingEnabled(false);
@@ -488,60 +442,52 @@ public interface StorageChannel extends Runnable, StorageChannelResetablePart, S
 					this.eventLogger.logChannelProcessingDisabled(this);
 					break;
 				}
-				
 
 				// check and wait for the next task to come in
-				if((currentTask = processedTask.awaitNext(housekeepingController.housekeepingIntervalMs())) == null)
-				{
+				if ((currentTask = processedTask.awaitNext(housekeepingController.housekeepingIntervalMs())) == null) {
 					// revert to processed task to wait on it again for the next task
 					currentTask = processedTask;
 				}
 			}
-			
+
 			logger.debug("StorageChannel#{} stopped", this.channelIndex);
 			this.eventLogger.logChannelStoppedWorking(this);
 		}
 
-
-
 		///////////////////////////////////////////////////////////////////////////
 		// methods //
 		////////////
-		
+
 		@Override
-		public synchronized boolean isActive()
-		{
+		public synchronized boolean isActive() {
 			return this.active;
 		}
-		
-		private synchronized void activate()
-		{
+
+		private synchronized void activate() {
 			this.active = true;
 		}
-		
-		private synchronized void deactivate()
-		{
+
+		private synchronized void deactivate() {
 			this.active = false;
 		}
 
 		@Override
-		public final void run()
-		{
+		public final void run() {
 			// first thing to do
 			this.activate();
-			
+
 			Throwable workingDisruption = null;
-			try
-			{
+			try {
 				this.work();
-			}
-			catch(final Throwable t)
-			{
+			} catch (final Throwable t) {
 				/*
-				 * Note that `t` could be an error or it could even be a checked exception thrown via
+				 * Note that `t` could be an error or it could even be a checked exception
+				 * thrown via
 				 * Proxy reflective tinkering or Unsafe mechanisms.
-				 * However, Throwable cannot be rethrown in Runnable#run() without cheating exception checking again.
-				 * Luckily, in this special case, reporting the cause and then dying "silently" is sufficient.
+				 * However, Throwable cannot be rethrown in Runnable#run() without cheating
+				 * exception checking again.
+				 * Luckily, in this special case, reporting the cause and then dying "silently"
+				 * is sufficient.
 				 *
 				 * Note: applies to interruption as well, because on privately managed threads,
 				 * interrupting ultimately means just stop running in an ordered fashion
@@ -550,22 +496,14 @@ public interface StorageChannel extends Runnable, StorageChannelResetablePart, S
 				logger.error("StorageChannel#{} encountered disrupting exception", this.channelIndex, t);
 				this.eventLogger.logDisruption(this, t);
 				this.exceptionHandler.handleException(t, this);
-			}
-			finally
-			{
-				try
-				{
+			} finally {
+				try {
 					this.dispose();
-				}
-				catch(final Throwable t1)
-				{
-					if(workingDisruption != null)
-					{
+				} catch (final Throwable t1) {
+					if (workingDisruption != null) {
 						t1.addSuppressed(workingDisruption);
 					}
-				}
-				finally
-				{
+				} finally {
 					// finally finally: guaranteed last thing to do ever in any case. Ever.
 					this.deactivate();
 				}
@@ -573,86 +511,80 @@ public interface StorageChannel extends Runnable, StorageChannelResetablePart, S
 		}
 
 		@Override
-		public void commitChunkStorage()
-		{
+		public void commitChunkStorage() {
 			this.fileManager.commitWrite();
 		}
 
 		@Override
-		public KeyValue<ByteBuffer[], long[]> storeEntities(final long timestamp, final Chunk chunkData)
-		{
-			// reset even if there is no new data to account for (potential) new data in other channel
+		public KeyValue<ByteBuffer[], long[]> storeEntities(final long timestamp, final Chunk chunkData) {
+			// reset even if there is no new data to account for (potential) new data in
+			// other channel
 			this.entityCache.registerPendingStoreUpdate();
 
 			final ByteBuffer[] buffers = chunkData.buffers();
-			
+
 			// (11.03.2019 TM)FIXME: priv#74: Pre-Write EntityValidator
-			
-			// set new data flag, even if chunk has no data to account for (potential) data in other channels
+
+			// set new data flag, even if chunk has no data to account for (potential) data
+			// in other channels
 			return X.KeyValue(buffers, this.fileManager.storeChunks(timestamp, buffers));
 		}
 
 		@Override
 		public void postStoreUpdateEntityCache(final ByteBuffer[] chunks, final long[] chunksStoragePositions)
-			throws InterruptedException
-		{
-			// all chunks were written into the same file, so it is viable to pass the current file right here
+				throws InterruptedException {
+			// all chunks were written into the same file, so it is viable to pass the
+			// current file right here
 			this.entityCache.postStorePutEntities(chunks, chunksStoragePositions, this.fileManager.currentStorageFile());
 		}
 
 		@Override
-		public final int channelIndex()
-		{
+		public final int channelIndex() {
 			return this.channelIndex;
 		}
 
 		@Override
-		public final StorageTypeDictionary typeDictionary()
-		{
+		public final StorageTypeDictionary typeDictionary() {
 			return this.entityCache.typeDictionary();
 		}
-		
-		private ChunksBuffer createLoadingChunksBuffer(final ChunksBuffer[] channelChunks)
-		{
+
+		private ChunksBuffer createLoadingChunksBuffer(final ChunksBuffer[] channelChunks) {
 			return this.switchByteOrder
-				? ChunksBufferByteReversing.New(channelChunks, this.loadingBufferSizeProvider)
-				: ChunksBuffer.New(channelChunks, this.loadingBufferSizeProvider)
-			;
+					? ChunksBufferByteReversing.New(channelChunks, this.loadingBufferSizeProvider)
+					: ChunksBuffer.New(channelChunks, this.loadingBufferSizeProvider);
 		}
 
 		@Override
-		public final ChunksBuffer collectLoadByOids(final ChunksBuffer[] resultArray, final PersistenceIdSet loadOids)
-		{
+		public final ChunksBuffer collectLoadByOids(final ChunksBuffer[] resultArray, final PersistenceIdSet loadOids) {
 			logger.debug("StorageChannel#{} loading {} references", this.channelIndex, loadOids.size());
 
-			/* it is probably best to start (any maybe continue) with lots of small, memory-agile
+			/*
+			 * it is probably best to start (any maybe continue) with lots of small,
+			 * memory-agile
 			 * byte buffers than to estimate one sufficiently huge bulky byte buffer.
 			 */
 			final ChunksBuffer chunks = this.createLoadingChunksBuffer(resultArray);
-			if(!loadOids.isEmpty())
-			{
+			if (!loadOids.isEmpty()) {
 				// progress must have been incremented accordingly at task creation time
 				loadOids.iterate(new EntityCollectorByOid(this.entityCache, chunks));
 			}
-			
+
 			return chunks.complete();
 		}
 
 		@Override
-		public final ChunksBuffer collectLoadRoots(final ChunksBuffer[] resultArray)
-		{
-			// pretty straight forward: cram all root instances the entity cache knows of into the buffer
+		public final ChunksBuffer collectLoadRoots(final ChunksBuffer[] resultArray) {
+			// pretty straight forward: cram all root instances the entity cache knows of
+			// into the buffer
 			final ChunksBuffer chunks = this.createLoadingChunksBuffer(resultArray);
 			this.entityCache.copyRoots(chunks);
 			return chunks.complete();
 		}
 
 		@Override
-		public final ChunksBuffer collectLoadByTids(final ChunksBuffer[] resultArray, final PersistenceIdSet loadTids)
-		{
+		public final ChunksBuffer collectLoadByTids(final ChunksBuffer[] resultArray, final PersistenceIdSet loadTids) {
 			final ChunksBuffer chunks = this.createLoadingChunksBuffer(resultArray);
-			if(!loadTids.isEmpty())
-			{
+			if (!loadTids.isEmpty()) {
 				// progress must have been incremented accordingly at task creation time
 				loadTids.iterate(new EntityCollectorByTid(this.entityCache, chunks));
 			}
@@ -660,265 +592,227 @@ public interface StorageChannel extends Runnable, StorageChannelResetablePart, S
 		}
 
 		@Override
-		public final void exportData(final StorageLiveFileProvider fileProvider)
-		{
+		public final void exportData(final StorageLiveFileProvider fileProvider) {
 			this.fileManager.exportData(fileProvider);
 		}
 
 		@Override
-		public StorageEntityCache.Default prepareImportData()
-		{
+		public StorageEntityCache.Default prepareImportData() {
 			this.fileManager.prepareImport();
 			return this.entityCache;
 		}
 
 		@Override
-		public void importData(final StorageImportSource importSource)
-		{
+		public void importData(final StorageImportSource importSource) {
 			this.fileManager.copyData(importSource);
 		}
 
 		@Override
-		public void rollbackImportData(final Throwable cause)
-		{
+		public void rollbackImportData(final Throwable cause) {
 			this.fileManager.rollbackImport();
 		}
 
 		@Override
-		public void commitImportData(final long taskTimestamp)
-		{
+		public void commitImportData(final long taskTimestamp) {
 			this.fileManager.commitImport(taskTimestamp);
 		}
 
 		@Override
 		public final KeyValue<Long, Long> exportTypeEntities(
-			final StorageEntityTypeHandler         type           ,
-			final AWritableFile                    file           ,
-			final Predicate<? super StorageEntity> predicateEntity
-		)
-			throws IOException
-		{
+				final StorageEntityTypeHandler type,
+				final AWritableFile file,
+				final Predicate<? super StorageEntity> predicateEntity)
+				throws IOException {
 			final StorageEntityType.Default entities = this.entityCache.getType(type.typeId());
-			if(entities == null || entities.entityCount() == 0)
-			{
+			if (entities == null || entities.entityCount() == 0) {
 				return X.KeyValue(0L, 0L);
 			}
 
 			final long byteCount = entities.iterateEntities(
-				new ThrowingProcedure<StorageEntity.Default, IOException>()
-				{
-					long byteCount;
+					new ThrowingProcedure<StorageEntity.Default, IOException>() {
+						long byteCount;
 
-					@Override
-					public void accept(final StorageEntity.Default e) throws IOException
-					{
-						if(!predicateEntity.test(e))
-						{
-							return;
+						@Override
+						public void accept(final StorageEntity.Default e) throws IOException {
+							if (!predicateEntity.test(e)) {
+								return;
+							}
+							this.byteCount += e.exportTo(file);
 						}
-						this.byteCount += e.exportTo(file);
-					}
-				}
-			).byteCount;
+					}).byteCount;
 
 			return X.KeyValue(byteCount, entities.entityCount());
 		}
 
-		// intentionally implemented redundantly to the other exportTypeEntities for performance reasons
+		// intentionally implemented redundantly to the other exportTypeEntities for
+		// performance reasons
 		@Override
 		public final KeyValue<Long, Long> exportTypeEntities(
-			final StorageEntityTypeHandler type,
-			final AWritableFile            file
-		)
-			throws IOException
-		{
+				final StorageEntityTypeHandler type,
+				final AWritableFile file)
+				throws IOException {
 			final StorageEntityType.Default entities = this.entityCache.getType(type.typeId());
-			if(entities == null || entities.entityCount() == 0)
-			{
+			if (entities == null || entities.entityCount() == 0) {
 				return X.KeyValue(0L, 0L);
 			}
 
 			final long byteCount = entities.iterateEntities(
-				new ThrowingProcedure<StorageEntity.Default, IOException>()
-				{
-					long byteCount;
+					new ThrowingProcedure<StorageEntity.Default, IOException>() {
+						long byteCount;
 
-					@Override
-					public void accept(final StorageEntity.Default e) throws IOException
-					{
-						this.byteCount += e.exportTo(file);
-					}
-				}
-			).byteCount;
+						@Override
+						public void accept(final StorageEntity.Default e) throws IOException {
+							this.byteCount += e.exportTo(file);
+						}
+					}).byteCount;
 
 			return X.KeyValue(byteCount, entities.entityCount());
 		}
 
 		@Override
-		public final StorageRawFileStatistics.ChannelStatistics createRawFileStatistics()
-		{
+		public final StorageRawFileStatistics.ChannelStatistics createRawFileStatistics() {
 			return this.fileManager.createRawFileStatistics();
 		}
 
 		@Override
-		public final void rollbackChunkStorage()
-		{
+		public final void rollbackChunkStorage() {
 			this.fileManager.rollbackWrite();
 		}
 
 		@Override
-		public final StorageInventory readStorage()
-		{
+		public final StorageInventory readStorage() {
 			return this.fileManager.readStorage();
 		}
 
 		@Override
 		public final StorageIdAnalysis initializeStorage(
-			final long             taskTimestamp           ,
-			final long             consistentStoreTimestamp,
-			final StorageInventory storageInventory
-		)
-		{
+				final long taskTimestamp,
+				final long consistentStoreTimestamp,
+				final StorageInventory storageInventory) {
 			return this.fileManager.initializeStorage(
-				taskTimestamp           ,
-				consistentStoreTimestamp,
-				storageInventory        ,
-				this
-			);
+					taskTimestamp,
+					consistentStoreTimestamp,
+					storageInventory,
+					this);
 		}
 
 		/**
 		 * {@inheritDoc}
 		 */
 		@Override
-		public final void reset()
-		{
+		public final void reset() {
 			this.entityCache.reset();
 			this.fileManager.reset();
 		}
 
 		@Override
-		public final void signalGarbageCollectionSweepCompleted()
-		{
+		public final void signalGarbageCollectionSweepCompleted() {
 			this.fileManager.restartFileCleanupCursor();
 		}
 
 		@Override
-		public void cleanupStore()
-		{
+		public void cleanupStore() {
 			this.entityCache.clearPendingStoreUpdate();
 		}
 
 		@Override
-		public final void dispose()
-		{
+		public final void dispose() {
 			this.entityCache.reset();
 			this.fileManager.dispose();
 		}
 	}
 
-
-
-	public final class EntityCollectorByOid implements _longProcedure
-	{
+	public final class EntityCollectorByOid implements _longProcedure {
 		// (01.06.2013 TM)TODO: clean up / consolidate all internal implementations
 
 		///////////////////////////////////////////////////////////////////////////
 		// instance fields //
 		////////////////////
 
-		private final StorageEntityCache.Default entityCache  ;
-		private final ChunksBuffer                      dataCollector;
-
-
+		private final StorageEntityCache.Default entityCache;
+		private final ChunksBuffer dataCollector;
 
 		///////////////////////////////////////////////////////////////////////////
 		// constructors //
 		/////////////////
 
 		public EntityCollectorByOid(
-			final StorageEntityCache.Default entityCache  ,
-			final ChunksBuffer                      dataCollector
-		)
-		{
+				final StorageEntityCache.Default entityCache,
+				final ChunksBuffer dataCollector) {
 			super();
-			this.entityCache   = entityCache  ;
+			this.entityCache = entityCache;
 			this.dataCollector = dataCollector;
 		}
-
-
 
 		///////////////////////////////////////////////////////////////////////////
 		// methods //
 		////////////
 
 		@Override
-		public final void accept(final long objectId)
-		{
+		public final void accept(final long objectId) {
 			final StorageEntity.Default entry;
-			if((entry = this.entityCache.getEntry(objectId)) == null)
-			{
-				/* (14.01.2015 TM)NOTE: this actually is an error, as every oid request comes
-				 * from a referencing entity from inside the same database. So if any load request lookup
-				 * yields null, it is an inconsistency that has to be expressed rather sooner than later.
+			if ((entry = this.entityCache.getEntry(objectId)) == null) {
+				/*
+				 * (14.01.2015 TM)NOTE: this actually is an error, as every oid request comes
+				 * from a referencing entity from inside the same database. So if any load
+				 * request lookup
+				 * yields null, it is an inconsistency that has to be expressed rather sooner
+				 * than later.
 				 *
-				 * If some kind of querying request (look if an arbitrary oid yields an entity) is needed,
+				 * If some kind of querying request (look if an arbitrary oid yields an entity)
+				 * is needed,
 				 * is has to be a dedicated kind of request, not this one.
-				 * This one does recursive graph loading (consistency required), not arbitrary querying
+				 * This one does recursive graph loading (consistency required), not arbitrary
+				 * querying
 				 * with optional results.
 				 */
-				throw new StorageExceptionConsistency("No entity found for objectId " + objectId);
+				// throw new StorageExceptionConsistency("No entity found for objectId " +
+				// objectId);
+				System.out.println("No entity found for objectId " + objectId);
 			}
-			entry.copyCachedData(this.dataCollector);
-			this.entityCache.checkForCacheClear(entry, System.currentTimeMillis());
+			if (entry != null) {
+				entry.copyCachedData(this.dataCollector);
+				this.entityCache.checkForCacheClear(entry, System.currentTimeMillis());
+			}
 		}
 
 	}
 
-	public final class EntityCollectorByTid implements _longProcedure
-	{
+	public final class EntityCollectorByTid implements _longProcedure {
 		///////////////////////////////////////////////////////////////////////////
 		// instance fields //
 		////////////////////
 
-		private final StorageEntityCache.Default entityCache  ;
-		private final ChunksBuffer                      dataCollector;
-
-
+		private final StorageEntityCache.Default entityCache;
+		private final ChunksBuffer dataCollector;
 
 		///////////////////////////////////////////////////////////////////////////
 		// constructors //
 		/////////////////
 
 		public EntityCollectorByTid(
-			final StorageEntityCache.Default entityCache  ,
-			final ChunksBuffer                      dataCollector
-		)
-		{
+				final StorageEntityCache.Default entityCache,
+				final ChunksBuffer dataCollector) {
 			super();
-			this.entityCache   = entityCache  ;
+			this.entityCache = entityCache;
 			this.dataCollector = dataCollector;
 		}
-
-
 
 		///////////////////////////////////////////////////////////////////////////
 		// methods //
 		////////////
 
 		@Override
-		public final void accept(final long tid)
-		{
+		public final void accept(final long tid) {
 			final StorageEntityType.Default type;
-			if((type = this.entityCache.getType(tid)) == null)
-			{
-				// it can very well be that a channel does not have a certain type at all. That is no error
+			if ((type = this.entityCache.getType(tid)) == null) {
+				// it can very well be that a channel does not have a certain type at all. That
+				// is no error
 				return;
 			}
 
 			// all the type's entities are iterated and their data is collected
-			for(StorageEntity.Default entity = type.head; (entity = entity.typeNext) != null;)
-			{
+			for (StorageEntity.Default entity = type.head; (entity = entity.typeNext) != null;) {
 				entity.copyCachedData(this.dataCollector);
 				this.entityCache.checkForCacheClear(entity, System.currentTimeMillis());
 			}
@@ -926,14 +820,15 @@ public interface StorageChannel extends Runnable, StorageChannelResetablePart, S
 
 	}
 
-
 	@FunctionalInterface
-	public interface HousekeepingTask
-	{
+	public interface HousekeepingTask {
 		/**
-		 * Performs a housekeeping task with reference to a starting time of the current housekeeping cycle
-		 * (typically to make a best effort attempt to not exceed a certain time budget).
-		 * Returns {@literal true} if the task was completed (e.g. currently no more work to dor)
+		 * Performs a housekeeping task with reference to a starting time of the current
+		 * housekeeping cycle
+		 * (typically to make a best effort attempt to not exceed a certain time
+		 * budget).
+		 * Returns {@literal true} if the task was completed (e.g. currently no more
+		 * work to dor)
 		 * or {@literal false} if the task execution had to be interrupted.
 		 *
 		 * @return whether the task was completed in the given time budget.
