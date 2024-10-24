@@ -9,13 +9,13 @@
 	<parent>
 		<groupId>org.eclipse.store</groupId>
 		<artifactId>store-parent</artifactId>
-		<version>1.3.0-SNAPSHOT</version>
+		<version>1.3.0-HOTFIX</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 
 	<artifactId>cache-parent</artifactId>
 	<packaging>pom</packaging>
-	
+
 	<name>EclipseStore Cache Parent</name>
 	<description>EclipseStore Cache Project</description>
 	<url>https://projects.eclipse.org/projects/technology.store</url>
