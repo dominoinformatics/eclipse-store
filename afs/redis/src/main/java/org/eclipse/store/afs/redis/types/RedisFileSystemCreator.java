@@ -16,6 +16,7 @@ package org.eclipse.store.afs.redis.types;
 
 import org.eclipse.serializer.afs.types.AFileSystem;
 import org.eclipse.serializer.chars.XChars;
+import org.eclipse.serializer.configuration.exceptions.ConfigurationException;
 import org.eclipse.serializer.configuration.types.Configuration;
 import org.eclipse.serializer.configuration.types.ConfigurationBasedCreator;
 import org.eclipse.store.afs.blobstore.types.BlobStoreFileSystem;
@@ -25,18 +26,16 @@ public class RedisFileSystemCreator extends ConfigurationBasedCreator.Abstract<A
 {
 	public RedisFileSystemCreator()
 	{
-		super(AFileSystem.class);
+		super(AFileSystem.class, "redis");
 	}
 
 	@Override
-	public AFileSystem create(
-		final Configuration configuration
-	)
+	public AFileSystem create(final Configuration configuration)
 	{
-		final String redisUri = configuration.get("redis.uri");
+		final String redisUri = configuration.get("uri");
 		if(XChars.isEmpty(redisUri))
 		{
-			return null;
+			throw new ConfigurationException(configuration, "redis.uri cannot be empty");
 		}
 
 		final boolean        cache     = configuration.optBoolean("cache").orElse(true);

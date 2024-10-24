@@ -37,6 +37,7 @@
 *** xref:storage:storing-data/transient-fields.adoc[Transient Fields]
 *** xref:storage:storing-data/best-practice.adoc[Best Practice]
 *** xref:storage:storing-data/deep-copy.adoc[Deep Copy Utility]
+*** xref:storage:storing-data/reloader.adoc[Reloading]
 ** xref:storage:loading-data/index.adoc[Loading Data]
 *** xref:storage:loading-data/lazy-loading/index.adoc[Lazy Loading]
 *** xref:storage:loading-data/lazy-loading/lazy-collections.adoc[Lazy Collections]
@@ -68,6 +69,7 @@
 ** Addendum
 *** xref:storage:addendum/supported-java-features.adoc[Supported Java Features]
 *** xref:storage:addendum/specialized-type-handlers.adoc[Specialized Type Handlers]
+*** xref:storage:addendum/tools.adoc[Tools]
 *** xref:storage:addendum/examples-and-demo-projects.adoc[Examples and Demo Projects]
 * xref:serializer:index.adoc[Serializer]
 * xref:cache:index.adoc[Cache]
@@ -85,6 +87,7 @@
 ** xref:misc:integrations/index.adoc[Integrations]
 *** xref:misc:integrations/spring-boot.adoc[Spring-Boot]
 *** xref:misc:integrations/micronaut.adoc[Micronaut]
+*** xref:misc:integrations/cdi.adoc[CDI]
 ** xref:misc:layered-entities/index.adoc[Layered Entities]
 *** xref:misc:layered-entities/configuration.adoc[Configuration]
 *** xref:misc:layered-entities/defining-entities.adoc[Defining Entities]

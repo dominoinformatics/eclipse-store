@@ -22,23 +22,22 @@ import org.eclipse.store.integrations.spring.boot.types.configuration.EclipseSto
 import org.eclipse.store.integrations.spring.boot.types.configuration.StorageFilesystem;
 import org.eclipse.store.integrations.spring.boot.types.configuration.aws.AbstractAwsProperties;
 import org.eclipse.store.integrations.spring.boot.types.configuration.aws.Aws;
+import org.eclipse.store.integrations.spring.boot.types.configuration.aws.S3;
 import org.eclipse.store.integrations.spring.boot.types.configuration.azure.Azure;
 import org.eclipse.store.integrations.spring.boot.types.configuration.oraclecloud.Oraclecloud;
 import org.eclipse.store.integrations.spring.boot.types.configuration.sql.AbstractSqlConfiguration;
 import org.eclipse.store.integrations.spring.boot.types.configuration.sql.Sql;
 import org.eclipse.store.storage.embedded.configuration.types.EmbeddedStorageConfigurationPropertyNames;
-import org.springframework.stereotype.Component;
 
 /**
  * The {@code EclipseStoreConfigConverter} class is a Spring component that converts the Eclipse Store properties into a map.
  * This map can then be used to configure the Eclipse Store.
  */
-@Component
 public class EclipseStoreConfigConverter
 {
 
     // Fields for testing if all keys from Eclipse Store Configuration are covered by these module.
-    // These fields are protected so they can be accessed in tests.
+    // These fields are protected, so they can be accessed in tests.
     // Each field represents a key in the Eclipse Store Configuration.
 
     // Fields for the storage directory configuration
@@ -143,6 +142,13 @@ public class EclipseStoreConfigConverter
     private Map<String, String> prepareFileSystem(final StorageFilesystem properties, final String key)
     {
         final Map<String, String> values = new HashMap<>();
+        
+        final String target = properties.getTarget();
+        if(target != null)
+        {
+        	values.put(this.composeKey(key, ConfigKeys.TARGET.value()), target);
+        }
+        
         if (properties.getSql() != null)
         {
             values.putAll(this.prepareSql(properties.getSql(), this.composeKey(key, ConfigKeys.SQL.value())));
@@ -203,9 +209,12 @@ public class EclipseStoreConfigConverter
         {
             values.putAll(this.prepareAwsProperties(aws.getDynamodb(), this.composeKey(key, ConfigKeys.DYNAMODB.value())));
         }
-        if (aws.getS3() != null)
+        final S3 s3 = aws.getS3();
+        if (s3 != null)
         {
-            values.putAll(this.prepareAwsProperties(aws.getS3(), this.composeKey(key, ConfigKeys.S3.value())));
+            final String s3Key = this.composeKey(key, ConfigKeys.S3.value());
+            values.putAll(this.prepareAwsProperties(s3, s3Key));
+            values.put(this.composeKey(s3Key, ConfigKeys.AWS_DIRECTORY_BUCKET.value()), Boolean.toString(s3.isDirectoryBucket()));
         }
         return values;
     }
@@ -214,6 +223,7 @@ public class EclipseStoreConfigConverter
     private Map<String, String> prepareAwsProperties(final AbstractAwsProperties awsProperties, final String key)
     {
         final Map<String, String> values = new HashMap<>();
+        values.put(this.composeKey(key, ConfigKeys.CACHE.value()), Boolean.toString(awsProperties.isCache()));
         values.put(this.composeKey(key, ConfigKeys.AWS_ENDPOINT_OVERRIDE.value()), awsProperties.getEndpointOverride());
         values.put(this.composeKey(key, ConfigKeys.AWS_REGION.value()), awsProperties.getRegion());
         values.put(this.composeKey(key, ConfigKeys.AWS_CREDENTIALS_TYPE.value()), awsProperties.getCredentials().getType());

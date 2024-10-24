@@ -21,7 +21,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.eclipse.serializer.afs.types.AFileSystem;
-import org.eclipse.serializer.meta.XDebug;
 import org.eclipse.serializer.monitoring.MonitoringManager;
 import org.eclipse.serializer.persistence.types.ObjectIdsSelector;
 import org.eclipse.serializer.persistence.types.Persistence;
@@ -123,15 +122,15 @@ public interface StorageSystem extends StorageController
 		private final AtomicLong       operationModeTime  = new AtomicLong()   ;
 
 		// running state members //
-		private volatile StorageTaskBroker    taskbroker    ;
-		private final    ChannelKeeper[]      channelKeepers;
+		private volatile StorageTaskBroker        taskbroker    ;
+		private final    ChannelKeeper[]          channelKeepers;
 		
-		private          StorageBackupHandler backupHandler;
-		private          Thread               backupThread ;
+		private          StorageBackupHandler     backupHandler;
+		private          Thread                   backupThread ;
 		
-		private          Thread               lockFileManagerThread;
+		private          StorageLockFileManager   lockFileManager;
 		
-		private          StorageIdAnalysis    initializationIdAnalysis;
+		private          StorageIdAnalysis        initializationIdAnalysis;
 
 
 
@@ -384,32 +383,37 @@ public interface StorageSystem extends StorageController
 				return;
 			}
 			
-			final StorageLockFileManager lockFileManager = this.lockFileManagerCreator.createLockFileManager(
+			this.lockFileManager = this.lockFileManagerCreator.createLockFileManager(
 				this.lockFileSetup,
-				this.operationController
+				this.operationController,
+				this.threadProvider
 			);
 
-			// initialize lock file manager state to being running
-			lockFileManager.start();
-			
-			// set up a lock file manager thread and start it if initialization (obtaining the "lock") was successful.
-			this.lockFileManagerThread = this.threadProvider.provideLockFileManagerThread(lockFileManager);
-			// can't start before the operation controller isn't in proper running state...
+			// initialize lock file manager state to be ready for running
+			this.lockFileManager.initialize();
 		}
 		
 		private void startLockFileManagerThread()
 		{
-			if(this.lockFileManagerThread == null)
+			if(this.lockFileManager == null)
 			{
 				// can be null if lock file is not desired. See #initializeLockFileManager
 				return;
 			}
 			
-			// can't start before the operation controller isn't in proper running state, hence the extra method
-			this.lockFileManagerThread.start();
+			this.lockFileManager.start();
 		}
 
-
+		
+		private void stopLockFileManagerThread()
+		{
+			if(this.lockFileManager == null)
+			{
+				return;
+			}
+			
+			this.lockFileManager.stop();
+		}
 
 		// "Please do not disturb the Keepers" :-D
 		static final class ChannelKeeper implements StorageActivePart
@@ -533,7 +537,7 @@ public interface StorageSystem extends StorageController
 			// note: this method is already entered under a lock protection, so there can't be a race condition here.
 			if(this.taskbroker == null)
 			{
-				XDebug.println("taskbroker is null");
+				logger.debug("taskbroker is null");
 				// storage not started in the first place
 				return;
 			}
@@ -553,6 +557,8 @@ public interface StorageSystem extends StorageController
 			this.shutdownBackup();
 			
 			this.operationController.deactivate();
+			
+			this.stopLockFileManagerThread();
 			
 			this.monitorManager.shutdown();
 
